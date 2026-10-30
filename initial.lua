@@ -1,4 +1,4 @@
--- initial.lua -- a decorated initial for florilegium (LuaLaTeX only).
+-- initial.lua -- a decorated initial for florilegium.
 --
 -- A square tile at the start of a paragraph: the letter, its outline read from
 -- an OpenType font and painted like a petal; a vine that winds over and under
@@ -21,8 +21,31 @@ local function dist(ax, ay, bx, by) local dx, dy = ax - bx, ay - by return sqrt(
 -- luaotfload's reader returns each glyph as segments in font units:
 -- {x, y, "m"}, {x, y, "l"}, {x1, y1, x2, y2, x3, y3, "c"}, {x1, y1, x2, y2, "q"}
 local cache = {}
+-- inside LuaLaTeX luaotfload's reader is already there; in plain texlua (the
+-- XeLaTeX driver) load the font reader from the same sources, silently
+local function bootstrap_reader()
+  kpse.set_program_name("luatex")
+  config = config or {}
+  config.lualibs = { verbose = false, prefer_merged = true, load_extended = true }
+  require("lualibs")
+  local w, wn = texio.write, texio.write_nl
+  texio.write, texio.write_nl = function() end, function() end
+  local u = utilities
+  require("fontloader-basics-gen.lua")
+  texio.write, texio.write_nl = w, wn
+  utilities = u
+  pdf = pdf or {}
+  for _, m in ipairs { "data-con", "font-ini", "font-con", "fonts-enc", "font-cid", "font-map", "font-oti",
+    "font-otr", "font-ott", "font-cff", "font-ttf", "font-dsp", "font-oup", "font-onr", "font-def" } do
+    require("fontloader-" .. m)
+  end
+end
 local function font_glyphs(file)
   if cache[file] then return cache[file] end
+  if not (fonts and fonts.handlers and fonts.handlers.otf and fonts.handlers.otf.readers
+      and fonts.handlers.otf.readers.loadshapes) then
+    bootstrap_reader()
+  end
   local path = kpse.find_file(file, "opentype fonts") or kpse.find_file(file, "truetype fonts")
   if not path then return nil end
   local shapes = fonts.handlers.otf.readers.loadshapes(path)

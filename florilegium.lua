@@ -5,8 +5,16 @@ local ink = require("ink")
 local flora = require("flora")
 local M = { ink = ink, flora = flora }
 
+-- access to TeX, replaceable by a driver running outside it (XeLaTeX): dimen(name)
+-- in sp, macro(name) as a string, error(msg)
+function M.dimen(name) return tex.dimen[name] end
+function M.macro(name) return token.get_macro(name) end
+function M.error(msg)
+  if tex and tex.error then tex.error(msg) else io.stderr:write(msg, "\n") end
+end
+
 local SP_CM = 2.54 / (72.27 * 65536)          -- cm per scaled point
-local function cm(name) return tex.dimen[name] * SP_CM end
+local function cm(name) return M.dimen(name) * SP_CM end
 
 -- the page layout, in cm from the lower-left corner of the paper
 function M.geometry()
@@ -37,22 +45,26 @@ function M.seed(page, fixed)
   page_rng = ink.rng(s)
   return s
 end
+-- for replay by a process that sees only some of the pages' draws: back to the state
+-- before any page was seeded, and skip k draws of the page rng
+function M.reset_rng() page_rng = ink.rng(1) end
+function M.advance(k) for _ = 1, k do page_rng.fork() end end
 
 -- the current pgf transformation (TikZ scopes) as an ink transform: local cm -> page bp
 local function sync_transform()
   local C = ink.CM
   local bp = 72 / 72.27 / 65536
   ink.set_transform({
-    tonumber(token.get_macro("pgf@pt@aa")) * C, tonumber(token.get_macro("pgf@pt@ab")) * C,
-    tonumber(token.get_macro("pgf@pt@ba")) * C, tonumber(token.get_macro("pgf@pt@bb")) * C,
-    tex.dimen["pgf@pt@x"] * bp, tex.dimen["pgf@pt@y"] * bp })
+    tonumber(M.macro("pgf@pt@aa")) * C, tonumber(M.macro("pgf@pt@ab")) * C,
+    tonumber(M.macro("pgf@pt@ba")) * C, tonumber(M.macro("pgf@pt@bb")) * C,
+    M.dimen("pgf@pt@x") * bp, M.dimen("pgf@pt@y") * bp })
 end
 
 -- \florilegiumdraw{name}{s, opts}: one primitive at the origin of the current TikZ scope
 local scaled = { leaf = true, leaflet = true, petal = true }
 function M.draw(name, s, o)
   local fn = flora[name]
-  if not fn then tex.error("florilegium: unknown primitive '" .. tostring(name) .. "'") return end
+  if not fn then M.error("florilegium: unknown primitive '" .. tostring(name) .. "'") return end
   sync_transform()
   local rng = page_rng.fork()
   if name == "ghost" then
@@ -99,8 +111,11 @@ function M.mark(kind, arg)
   node.write(n)
 end
 
-local HLIST, VLIST, GLUE, KERN, RULE, WHATSIT = node.id("hlist"), node.id("vlist"), node.id("glue"), node.id("kern"), node.id("rule"), node.id("whatsit")
-local USER = node.subtype("user_defined")
+local HLIST, VLIST, GLUE, KERN, RULE, WHATSIT, USER     -- node ids, set on first use (no node library outside LuaTeX)
+local function node_ids()
+  HLIST, VLIST, GLUE, KERN, RULE, WHATSIT = node.id("hlist"), node.id("vlist"), node.id("glue"), node.id("kern"), node.id("rule"), node.id("whatsit")
+  USER = node.subtype("user_defined")
+end
 -- walk a box list; y grows downward from the top of the outer box, x rightward
 local function walk(head, parent, x, y, vertical, out)
   for n in node.traverse(head) do
@@ -130,8 +145,11 @@ local function walk(head, parent, x, y, vertical, out)
     end
   end
 end
--- the marks on the page being shipped out, in page cm from the lower-left corner
+-- the marks on the page being shipped out, in page cm from the lower-left corner.
+-- A table is a list of marks already in page cm (from a driver outside LuaTeX).
 local function page_marks(box)
+  if type(box) == "table" then return box end
+  if not HLIST then node_ids() end
   local b = box and tex.box[box]
   if not b then return {} end
   local out = {}
@@ -153,7 +171,7 @@ function M.initial(letter, side, hang, cap)
   local bp = 72 / 72.27 / 65536
   ink.set_transform({ ink.CM, 0, 0, ink.CM, -hang * bp, (cap - side) * bp })
   local ok, err = require("initial").draw(page_rng.fork(), side * SP_CM, letter, { font = M.initial_font })
-  if not ok then tex.error("florilegium: " .. tostring(err)) end
+  if not ok then M.error("florilegium: " .. tostring(err)) end
   ink.flush()
 end
 -- the letter is also typeset in the text, in PDF's invisible text rendering
