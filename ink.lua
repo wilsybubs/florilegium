@@ -222,6 +222,22 @@ function M.layer(n) local old = cur cur = n return old end
 function M.tag(t) local old = tag tag = t return old end
 function M.record(on) recording = on tag = nil end
 
+-- where output goes. The defaults write into the LuaTeX page; a driver outside TeX
+-- replaces them. literal(s): s is a complete content stream. extgs(name, dict): a
+-- named ExtGState resource, e.g. "floa50", "<< /ca 0.50 /CA 0.50 >>"; asked once per name.
+M.backend = {
+  literal = function(s)
+    local n = node.new("whatsit", "pdf_literal")
+    n.mode = 0
+    n.data = s
+    node.write(n)
+  end,
+  extgs = function(name, dict)
+    tex.sprint(luatexbase.registernumber("catcodetable@atletter"),
+      fmt("\\pgfutil@addpdfresource@extgs{/%s %s}", name, dict))
+  end,
+}
+
 local gs_known = {}
 local function gs(op, mult)
   op = floor(op * 100 + 0.5)
@@ -229,8 +245,7 @@ local function gs(op, mult)
   local name = fmt("flo%s%d", mult and "m" or "a", op)
   if not gs_known[name] then
     gs_known[name] = true
-    tex.sprint(luatexbase.registernumber("catcodetable@atletter"),
-      fmt("\\pgfutil@addpdfresource@extgs{/%s << /ca %.2f /CA %.2f%s >>}", name, op / 100, op / 100, mult and " /BM /Multiply" or ""))
+    M.backend.extgs(name, fmt("<< /ca %.2f /CA %.2f%s >>", op / 100, op / 100, mult and " /BM /Multiply" or ""))
   end
   return name
 end
@@ -305,10 +320,7 @@ end
 local function literal(parts)
   if #parts == 0 then return 0 end
   local s = "q 1 J 1 j\n" .. concat(parts, "\n") .. "\nQ"
-  local n = node.new("whatsit", "pdf_literal")
-  n.mode = 0
-  n.data = s
-  node.write(n)
+  M.backend.literal(s)
   return #s
 end
 local function sorted_keys()

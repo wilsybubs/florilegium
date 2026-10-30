@@ -62,7 +62,7 @@ The free region is computed from the page layout, so changing the margins moves 
 garden. The end of the text is measured where it happens: \verb|\florilegiumtextend|
 records \verb|\pagetotal| and \verb|\pagedepth|, the height of the material already on the
 current page, and the background of that page is drawn after it. On the last page, the
-garden therefore spills into the space below the words in a single compilation: branches
+garden therefore spills into the space below the words in a single Lua\LaTeX\ run: branches
 arch out of the main stems into that space and each ends in a flower.
 \end{remark}
 
@@ -77,6 +77,6 @@ and $1$ reweights the motifs from buds in spring to seed heads in autumn.
 
 \begin{remark}[Cost]
 The layout is cheap: the grid has a few thousand points, a proxy only updates the points
-near it, and the whole loop takes a fraction of a second. This document of four pages
+near it, and the whole loop takes a fraction of a second. This document of five pages
 compiles in about five seconds.
 \end{remark}

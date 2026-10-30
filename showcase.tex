@@ -1,6 +1,7 @@
 %% showcase.tex -- what the grown margin does besides growing: it reads the text.
 %% LuaLaTeX, two passes (the option aging reads the page count of the first):
 %%   lualatex showcase.tex && lualatex showcase.tex
+%% XeLaTeX works too: xelatex --shell-escape showcase.tex, twice (see the README)
 \documentclass[11pt,a4paper]{article}
 \renewcommand\rmdefault{cmr}\renewcommand\sfdefault{cmss}\renewcommand\ttdefault{cmtt}
 \usepackage[T1]{fontenc}
@@ -40,7 +41,7 @@ margin, beside its heading: a large one for a section, a spray of small ones for
 subsection, painted in the copper of the accents, the way headings were once picked out in
 red. The heading carries an invisible mark. When the page is shipped out, the
 garden is drawn and the page box is searched for these marks, so the garden knows the
-height of each heading on the same page in the same run. Where the margin is already
+height of each heading on the same page in the same run (under Xe\LaTeX, from the run before). Where the margin is already
 taken, by the large flower at the top of the page for example, the flower is made
 smaller or left out.
 

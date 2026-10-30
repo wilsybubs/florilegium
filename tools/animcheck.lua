@@ -3,12 +3,11 @@
 -- without the spill under the text; in summer, in spring, and in autumn with a
 -- heading and a \florilegiumbloom marked in the text). Runs without TeX:
 --   texlua tools/animcheck.lua 1 2 3      (or: tools/in-docker texlua tools/animcheck.lua)
-tex = { sprint = function() end }
-luatexbase = { registernumber = function() return 0 end }
-local out
-node = { new = function() return {} end, write = function(n) out = n.data end }
 package.path = "./?.lua;" .. package.path
 local ink, grow = require("ink"), require("grow")
+local out
+ink.backend.literal = function(s) out = s end
+ink.backend.extgs = function() end
 
 -- an A4 page with a 68 mm left margin, roughly as in the demo documents
 local CASES = {

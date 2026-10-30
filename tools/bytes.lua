@@ -1,11 +1,10 @@
 -- Measure the content-stream bytes of each primitive, without TeX:
 --   texlua tools/bytes.lua          (from the repo root; or: tools/in-docker texlua tools/bytes.lua)
-tex = { sprint = function() end }
-luatexbase = { registernumber = function() return 0 end }
-local written = 0
-node = { new = function() return {} end, write = function(n) written = written + #n.data end }
 package.path = "./?.lua;" .. package.path
 local ink, flora = require("ink"), require("flora")
+local written = 0
+ink.backend.literal = function(s) written = written + #s end
+ink.backend.extgs = function() end
 local function measure(name, fn)
   local tot = 0
   for k = 1, 10 do

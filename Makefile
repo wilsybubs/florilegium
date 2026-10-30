@@ -1,4 +1,5 @@
 LUALATEX = $(RUN) lualatex -interaction=nonstopmode -halt-on-error
+XELATEX  = $(RUN) xelatex -interaction=nonstopmode -halt-on-error
 SEEDS   ?= 1 2 3 4 5 6
 # RUN=tools/in-docker builds inside the florilegium-tex image (see tools/Dockerfile)
 RUN     ?=
@@ -48,6 +49,33 @@ animation:
 	cp build/grow-6.gif gallery/growth.gif
 	cp build/grow-6-explain.gif gallery/growth-explain.gif
 
+# The same three documents with XeLaTeX (see the README); -jobname puts everything in a
+# directory (-output-directory does not work with XeLaTeX), which must exist.
+#   make xe        xelatex --shell-escape: each drawing is made as it is placed -> build/xe/
+#   make xe-batch  no shell escape: xelatex, texlua florilegium-xe.lua, xelatex -> build/xe-batch/
+# showcase needs a second run (heading marks, page count for aging); in batch mode the
+# page count needs one more xelatex before texlua.
+XEDOCS   = florilegium florilegium-grow showcase
+
+xe: $(XEDOCS:%=%.tex) florilegium.sty florilegium-xetex.def florilegium-xe.lua grow.lua $(LUA)
+	mkdir -p build/xe
+	for d in $(XEDOCS); do \
+	  $(XELATEX) --shell-escape -jobname=build/xe/$$d $$d.tex || exit 1; \
+	done
+	$(XELATEX) --shell-escape -jobname=build/xe/showcase showcase.tex
+
+xe-batch: $(XEDOCS:%=%.tex) florilegium.sty florilegium-xetex.def florilegium-xe.lua grow.lua $(LUA)
+	mkdir -p build/xe-batch
+	for d in florilegium florilegium-grow; do \
+	  $(XELATEX) -jobname=build/xe-batch/$$d $$d.tex || exit 1; \
+	  $(RUN) texlua florilegium-xe.lua build/xe-batch/$$d || exit 1; \
+	  $(XELATEX) -jobname=build/xe-batch/$$d $$d.tex || exit 1; \
+	done
+	$(XELATEX) -jobname=build/xe-batch/showcase showcase.tex
+	$(XELATEX) -jobname=build/xe-batch/showcase showcase.tex
+	$(RUN) texlua florilegium-xe.lua build/xe-batch/showcase
+	$(XELATEX) -jobname=build/xe-batch/showcase showcase.tex
+
 preview: florilegium.pdf florilegium-grow.pdf showcase.pdf
 	mkdir -p gallery
 	pdftoppm -png -r 60 -f 1 -l 1 -singlefile florilegium.pdf gallery/preview-authored
@@ -59,6 +87,6 @@ preview: florilegium.pdf florilegium-grow.pdf showcase.pdf
 	  [s.paste(im, (8 + i * (w + 8), 8)) for i, im in enumerate(ims)]; s.save('gallery/preview-showcase.png')"
 
 clean:
-	rm -rf build *.aux *.log *.out *.synctex.gz
+	rm -rf build *.aux *.log *.out *.synctex.gz *.flo *-flo.pdf *-flo.tex *-flo *.xdv
 
-.PHONY: all gallery animation preview clean
+.PHONY: all gallery animation preview clean xe xe-batch
