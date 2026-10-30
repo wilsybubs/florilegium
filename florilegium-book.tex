@@ -1,0 +1,36 @@
+%% florilegium-book.tex -- the grown composition in a two-sided document: the garden is in
+%% the outer margin of every page (left on even pages, mirrored on the right on odd ones).
+%% LuaLaTeX, one pass:
+%%   lualatex florilegium-book.tex
+%% XeLaTeX works too (twice, the margins of the pages are known after the first run):
+%%   xelatex --shell-escape florilegium-book.tex
+%%   xelatex florilegium-book.tex && texlua florilegium-xe.lua florilegium-book && xelatex florilegium-book.tex
+%% The option book needs a two-sided layout (twoside in the class and in geometry) and
+%% works with the authored composition too: \usepackage[book]{florilegium}.
+\documentclass[11pt,a4paper,twoside]{article}
+\renewcommand\rmdefault{cmr}\renewcommand\sfdefault{cmss}\renewcommand\ttdefault{cmtt}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[a4paper,twoside,inner=22mm,outer=68mm,top=32mm,bottom=30mm,headsep=8mm]{geometry}
+\usepackage{fancyhdr}
+\usepackage[grown,book]{florilegium}
+
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[RO,LE]{\small\textsc{3\quad Procedural ornament}}
+\fancyfoot[RO,LE]{\small\thepage}
+\renewcommand\headrulewidth{0pt}
+
+\theoremstyle{plain}
+\newtheorem{proposition}{Proposition}[section]
+\theoremstyle{definition}
+\newtheorem{definition}[proposition]{Definition}
+\newtheorem{construction}[proposition]{Construction}
+\newtheorem{remark}[proposition]{Remark}
+\newtheorem{exercise}[proposition]{Exercise}
+
+\begin{document}
+\input{text-methods}
+\input{text-growth}
+\input{text-sharing}
+\florilegiumtextend
+\end{document}

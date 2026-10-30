@@ -181,7 +181,8 @@
     frame=\flo@frame,
     paperwidth=\number\paperwidth, paperheight=\number\paperheight,
     hoffset=\number\hoffset, voffset=\number\voffset,
-    oddsidemargin=\number\oddsidemargin, textwidth=\number\textwidth,
+    book=\ifflorilegium@book true\else false\fi, oddsidemargin=\number\oddsidemargin,
+    evensidemargin=\number\evensidemargin, textwidth=\number\textwidth,
     topmargin=\number\topmargin, headheight=\number\headheight, headsep=\number\headsep,
     textheight=\number\textheight, footskip=\number\footskip}}%
   \ifflo@shell

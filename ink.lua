@@ -250,9 +250,18 @@ local function gs(op, mult)
   return name
 end
 
+-- A page mirror (two-sided documents): while set_mirror(W) is on, every x that is
+-- written becomes W - x (W is the width of the page in bp), after the transform. The
+-- layout is then made as for a left margin, and lands in the right one. P is the only
+-- place where a coordinate goes into the stream.
+local mirror
+function M.set_mirror(w) mirror = w end
+
 -- 0.1 bp (0.035 mm) is finer than any printer resolves
 local function P(x, y)
-  return fmt("%.1f %.1f", T[1] * x + T[3] * y + T[5], T[2] * x + T[4] * y + T[6])
+  local px = T[1] * x + T[3] * y + T[5]
+  if mirror then px = mirror - px end
+  return fmt("%.1f %.1f", px, T[2] * x + T[4] * y + T[6])
 end
 
 -- path construction: polyline or smooth (Catmull-Rom as Béziers) through points {{x,y},...}

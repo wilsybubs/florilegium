@@ -17,11 +17,13 @@
 --
 -- Record format (a Lua chunk; PAGE{...} PAGE is a function in the reading environment):
 --   PAGE{id, n, page, fixed, grown, visitors, aging, age, last, ink, accent, endpage,
---        endtotal, frame, paperwidth, paperheight, hoffset, voffset, oddsidemargin, textwidth, topmargin,
---        headheight, headsep, textheight, footskip}
+--        endtotal, frame, book, paperwidth, paperheight, hoffset, voffset, oddsidemargin,
+--        evensidemargin, textwidth, topmargin, headheight, headsep, textheight, footskip}
 --       the margin of one page; n counts the shipped pages, page is \thepage; fixed is
 --       \florilegiumseed or nil, age is the last \florilegiumage or nil, last the last
---       page of the previous run (option aging) or nil, endpage/endtotal the text end
+--       page of the previous run (option aging) or nil, book true when the option book is on
+--       in a two-sided layout (florilegium.lua then picks the side from page and the margins),
+--       endpage/endtotal the text end
 --       (\florilegiumtextend; page, sp), frame {k, n, explain} or nil; lengths in sp
 --   MARK{n, page, kind, arg, x, y}   a heading or \florilegiumbloom on shipped page n; x, y in
 --       sp from the lower-left corner of the paper
@@ -112,6 +114,7 @@ local function page(d)
   colors(d)
   local seed = M.seed(d.page, d.fixed)
   M.visitors = d.visitors
+  M.book = d.book
   if d.grown then
     if d.frame then M.frame(d.frame.k, d.frame.n, d.frame.explain) end
     M.age = d.age

@@ -15,6 +15,10 @@ florilegium.pdf: florilegium.tex florilegium.sty authored.lua grow.lua $(LUA) te
 florilegium-grow.pdf: florilegium-grow.tex florilegium.sty grow.lua $(LUA) text-methods.tex text-growth.tex text-sharing.tex
 	$(LUALATEX) florilegium-grow.tex
 
+# two-sided: the garden in the outer margin of every page (option book), one pass
+florilegium-book.pdf: florilegium-book.tex florilegium.sty grow.lua $(LUA) text-methods.tex text-growth.tex text-sharing.tex
+	$(LUALATEX) florilegium-book.tex
+
 # initials, flowers at the headings, visitors and the seasons; two passes, because
 # the option aging reads the page count of the first one
 showcase.pdf: showcase.tex florilegium.sty grow.lua $(LUA)

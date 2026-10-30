@@ -16,6 +16,15 @@ end
 local SP_CM = 2.54 / (72.27 * 65536)          -- cm per scaled point
 local function cm(name) return M.dimen(name) * SP_CM end
 
+-- two-sided documents (option book; the .sty or the XeLaTeX driver sets M.book): the garden
+-- is in the outer margin. A verso (even page) has it on the left, as always, with the
+-- text at \evensidemargin. A recto (odd page) is laid out as if its text were a left-margin
+-- page's, with the text mirrored about the middle of the paper (textleft = pw - right
+-- edge of the real text, ...), and ink.set_mirror turns the drawing around at the end.
+M.book = false
+local cur_page = 1                            -- \value{page} of the margin being drawn, see M.seed
+local function mirrored() return M.book and cur_page % 2 == 1 end
+
 -- the page layout, in cm from the lower-left corner of the paper
 function M.geometry()
   local inch = 2.54
@@ -24,6 +33,12 @@ function M.geometry()
     textleft = inch + cm("oddsidemargin"),
   }
   g.textright = g.textleft + cm("textwidth")
+  if M.book then
+    local left = inch + cm("hoffset") + cm(cur_page % 2 == 1 and "oddsidemargin" or "evensidemargin")
+    g.textleft, g.textright = left, left + cm("textwidth")
+    if mirrored() then g.textleft, g.textright = g.pw - g.textright, g.pw - g.textleft end
+    g.mirror = mirrored()
+  end
   g.ytop = g.ph - inch - cm("topmargin") - cm("headheight") - cm("headsep")
   g.ybot = g.ytop - cm("textheight")
   g.colright = g.textleft - 0.4
@@ -41,6 +56,7 @@ end
 -- one rng per page; primitives drawn from TeX fork it in call order
 local page_rng = ink.rng(1)
 function M.seed(page, fixed)
+  cur_page = page
   local s = fixed and (fixed * 7919 + page * 131) or (page * 97 + 1030)
   page_rng = ink.rng(s)
   return s
@@ -197,7 +213,7 @@ local frame, recorded = nil, {}
 function M.frame(k, n, explain) frame = { k = k, n = n, explain = explain == "explain" } end
 
 local function grown_frame(g)
-  local key = string.format("%d %d %.3f %s %d", g.seed, g.spill, g.spilly, tostring(g.age), #g.marks)
+  local key = string.format("%d %d %.3f %s %d %s", g.seed, g.spill, g.spilly, tostring(g.age), #g.marks, tostring(g.mirror))
   if not recorded[key] then
     g.anim = true
     recorded = { [key] = require("grow").page(g) }      -- keep only the latest garden
@@ -213,6 +229,15 @@ local function grown_frame(g)
   end)
 end
 
+-- run fn(g) with the page mirror on when this page of a two-sided document needs it
+local function mirrored_draw(g, fn)
+  if not g.mirror then return fn() end
+  ink.set_mirror(g.pw * ink.CM)
+  local ok, err = pcall(fn)
+  ink.set_mirror(nil)
+  if not ok then error(err, 0) end
+end
+
 -- the grown composition for this page; M.visitors = false (option novisitors)
 -- leaves out the butterflies, bees, snails and birds
 M.visitors = true
@@ -220,16 +245,25 @@ function M.grown(seed, spill, spilly, box)
   local g = M.geometry()
   g.seed, g.spill, g.spilly, g.visitors, g.age = seed, spill, spilly, M.visitors, M.age
   g.marks = page_marks(box)
-  if frame then grown_frame(g) else require("grow").page(g) end
-  M.head(g)
+  if g.mirror then                            -- marks are where the text really is
+    local marks = {}
+    for i, m in ipairs(g.marks) do marks[i] = { kind = m.kind, arg = m.arg, x = g.pw - m.x, y = m.y } end
+    g.marks = marks
+  end
+  mirrored_draw(g, function()
+    if frame then grown_frame(g) else require("grow").page(g) end
+    M.head(g)
+  end)
 end
 
 -- the authored composition for this page
 function M.authored(seed)
   local g = M.geometry()
   g.seed, g.visitors = seed, M.visitors
-  require("authored").page(g)
-  M.head(g)
+  mirrored_draw(g, function()
+    require("authored").page(g)
+    M.head(g)
+  end)
 end
 
 return M

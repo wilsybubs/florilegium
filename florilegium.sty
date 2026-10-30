@@ -15,6 +15,11 @@
 %%   \usepackage[grown,novisitors]{florilegium}  no butterflies, bees, snails or birds
 %%   \usepackage[grown,sections]{florilegium}    a flower beside every numbered \section
 %%                                      and \subsection (standard classes)
+%%   \usepackage[grown,book]{florilegium}       two-sided documents (\documentclass[twoside]
+%%                                      or book, or geometry's twoside): the garden is in
+%%                                      the outer margin of every page, on the left of an
+%%                                      even page and, mirrored, on the right of an odd
+%%                                      one. In a one-sided document: a warning, no effect.
 %%   \usepackage[grown,aging]{florilegium}       the garden ages from spring on the first
 %%                                      page to autumn on the last (two runs: the page
 %%                                      count is read from the .aux of the run before)
@@ -52,12 +57,14 @@
 \newif\ifflorilegium@visitors \florilegium@visitorstrue
 \newif\ifflorilegium@sections
 \newif\ifflorilegium@aging
+\newif\ifflorilegium@book
 \DeclareOption{authored}{\florilegium@grownfalse}
 \DeclareOption{grown}{\florilegium@growntrue}
 \DeclareOption{nomargin}{\florilegium@marginfalse}
 \DeclareOption{novisitors}{\florilegium@visitorsfalse}
 \DeclareOption{sections}{\florilegium@sectionstrue}
 \DeclareOption{aging}{\florilegium@agingtrue}
+\DeclareOption{book}{\florilegium@booktrue}
 \ProcessOptions\relax
 \ifdefined\florilegiumseed\else\def\florilegiumseed{}\fi
 
@@ -158,6 +165,18 @@
 %% ================================================================ XeLaTeX
 %% the drawing is done by texlua outside TeX, see florilegium-xetex.def
 \ifdefined\XeTeXrevision\input{florilegium-xetex.def}\fi
+\fi
+
+%% ---------------------------------------------------------------- book (both engines)
+%% whether the layout is two-sided is known only at \begin{document} (a class option,
+%% or geometry's twoside, which may come after this package)
+\ifflorilegium@book
+  \AtBeginDocument{%
+    \if@twoside\else
+      \PackageWarningNoLine{florilegium}{Option book needs a two-sided layout (twoside), the margin stays on the left}%
+      \florilegium@bookfalse
+    \fi
+    \ifdefined\directlua\ifflorilegium@book\directlua{florilegium.book = true}\fi\fi}
 \fi
 
 %% ---------------------------------------------------------------- headings (both engines)
