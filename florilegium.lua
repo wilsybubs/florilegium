@@ -21,6 +21,7 @@ local function cm(name) return M.dimen(name) * SP_CM end
 -- text at \evensidemargin. A recto (odd page) is laid out as if its text were a left-margin
 -- page's, with the text mirrored about the middle of the paper (textleft = pw - right
 -- edge of the real text, ...), and ink.set_mirror turns the drawing around at the end.
+-- The drawing's frame moves with \hoffset like the text, so the mirror is about pw - 2·hoffset.
 M.book = false
 local cur_page = 1                            -- \value{page} of the margin being drawn, see M.seed
 local function mirrored() return M.book and cur_page % 2 == 1 end
@@ -34,9 +35,13 @@ function M.geometry()
   }
   g.textright = g.textleft + cm("textwidth")
   if M.book then
-    local left = inch + cm("hoffset") + cm(cur_page % 2 == 1 and "oddsidemargin" or "evensidemargin")
+    local left = inch + cm(cur_page % 2 == 1 and "oddsidemargin" or "evensidemargin")
     g.textleft, g.textright = left, left + cm("textwidth")
-    if mirrored() then g.textleft, g.textright = g.pw - g.textright, g.pw - g.textleft end
+    if mirrored() then
+      local w = g.pw - 2 * cm("hoffset")
+      g.textleft, g.textright = w - g.textright, w - g.textleft
+      g.mirrorw = w
+    end
     g.mirror = mirrored()
   end
   g.ytop = g.ph - inch - cm("topmargin") - cm("headheight") - cm("headsep")
@@ -232,7 +237,7 @@ end
 -- run fn(g) with the page mirror on when this page of a two-sided document needs it
 local function mirrored_draw(g, fn)
   if not g.mirror then return fn() end
-  ink.set_mirror(g.pw * ink.CM)
+  ink.set_mirror(g.mirrorw * ink.CM)
   local ok, err = pcall(fn)
   ink.set_mirror(nil)
   if not ok then error(err, 0) end
@@ -247,7 +252,7 @@ function M.grown(seed, spill, spilly, box)
   g.marks = page_marks(box)
   if g.mirror then                            -- marks are where the text really is
     local marks = {}
-    for i, m in ipairs(g.marks) do marks[i] = { kind = m.kind, arg = m.arg, x = g.pw - m.x, y = m.y } end
+    for i, m in ipairs(g.marks) do marks[i] = { kind = m.kind, arg = m.arg, x = g.mirrorw - m.x, y = m.y } end
     g.marks = marks
   end
   mirrored_draw(g, function()
