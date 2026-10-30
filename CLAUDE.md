@@ -16,16 +16,17 @@ document), pages get visitors, and paragraphs can open with a decorated initial;
 
 | file | what |
 |---|---|
-| `florilegium.sty` | thin TeX layer: options `authored` (default) / `grown`, `nomargin`, `novisitors`, `sections`, `aging`; colors `ink` and `accent`; `\florilegiumdraw`, `\florilegiumtextend`, `\florilegiumbloom`, `\florilegiumage`, `\florilegiuminitial`, `\florilegiuminitialfont`, `\florilegiumframe`; the shipout hook. LuaLaTeX natively; under XeLaTeX it loads the `.def` below instead of the shipout hook. |
+| `florilegium.sty` | thin TeX layer: options `authored` (default) / `grown`, `nomargin`, `novisitors`, `sections`, `aging`, `book`; colors `ink` and `accent`; `\florilegiumdraw`, `\florilegiumtextend`, `\florilegiumbloom`, `\florilegiumage`, `\florilegiuminitial`, `\florilegiuminitialfont`, `\florilegiumframe`; the shipout hook. LuaLaTeX natively; under XeLaTeX it loads the `.def` below instead of the shipout hook. |
 | `florilegium-xetex.def` | XeLaTeX half of the `.sty` (loaded by it): one Lua record per margin/initial/`\florilegiumdraw` into `<jobname>.flo`, `\pdfsavepos` for marks, `\special{pdf:image}` to place the drawings, shell-escape one-run mode and batch mode, md5 of the records for the rerun warnings. The header comment is the spec of both build modes. |
-| `florilegium-xe.lua` | the driver, run by texlua: reads the records, stubs the TeX accessors, plays them through `florilegium.lua` and writes minimal PDFs (`<base>-flo.pdf` + `-flo.tex` in batch mode; `<base>-flo/n.pdf` with `--item n` in shell-escape mode). Header comment: record format. Env `FLORILEGIUM_DUMP=<file>` appends every content stream. |
-| `florilegium.lua` | glue: page geometry from TeX dimens (through `M.dimen`/`M.macro`/`M.error`, which the XeLaTeX driver replaces), `reset_rng`/`advance` to replay the page rng, marks given as a precomputed list, colors, page seed, the TikZ transform (`\pgf@pt@aa..bb`, `\pgf@pt@x/y`), primitive dispatch, the header; text marks (whatsits) and the walk of `\ShipoutBox` that finds them; age; animation frames; the initial's placement and its invisible letter. |
-| `ink.lua` | drawing core: mulberry32 rng, 1-D gradient noise/fbm, OKLCH tone ramp, affine transform stack, path building (`smooth` = Catmull-Rom as Béziers, `taper`, `ribbon`, `blade`, `blob`), fill/stroke/clip with ExtGState opacity + multiply, numbered layers, `flush()` into one `pdf_literal` node. Output goes through `ink.backend` (`literal(s)`, `extgs(name, dict)`), which a driver outside TeX replaces. |
+| `florilegium-xe.lua` | the driver, run by texlua: reads the records (PAGE fields include `book` and `evensidemargin`), stubs the TeX accessors, plays them through `florilegium.lua` and writes minimal PDFs (`<base>-flo.pdf` + `-flo.tex` in batch mode; `<base>-flo/n.pdf` with `--item n` in shell-escape mode). Header comment: record format. Env `FLORILEGIUM_DUMP=<file>` appends every content stream. |
+| `florilegium.lua` | glue: page geometry from TeX dimens (through `M.dimen`/`M.macro`/`M.error`, which the XeLaTeX driver replaces), the page side for option book (`M.book`, `mirrored()` in `M.geometry`, the mirrored marks and `mirrored_draw`), `reset_rng`/`advance` to replay the page rng, marks given as a precomputed list, colors, page seed, the TikZ transform (`\pgf@pt@aa..bb`, `\pgf@pt@x/y`), primitive dispatch, the header; text marks (whatsits) and the walk of `\ShipoutBox` that finds them; age; animation frames; the initial's placement and its invisible letter. |
+| `ink.lua` | drawing core: mulberry32 rng, 1-D gradient noise/fbm, OKLCH tone ramp, affine transform stack, path building (`smooth` = Catmull-Rom as Béziers, `taper`, `ribbon`, `blade`, `blob`), fill/stroke/clip with ExtGState opacity + multiply, numbered layers, the page mirror (`set_mirror`, applied last in `P`), `flush()` into one `pdf_literal` node. Output goes through `ink.backend` (`literal(s)`, `extgs(name, dict)`), which a driver outside TeX replaces. |
 | `flora.lua` | the primitives: `petal flower lily blossom floret bud bell leaf leaflet stem cyme sprig umbel seedhead tendril sparkle rosette hedera ghost`, the visitors `butterfly bee snail bird`, plus `branch_path`. |
 | `grow.lua` | grown composition: regions, grid, stems, marks, visitors on the stems, leaves at nodes, branch loop, falling petals, filler, footer tail; seasons; animation events. Also exports the **motif table** (`M.motifs`) and layer numbers used by `authored.lua`. |
 | `authored.lua` | authored composition: the hand-placed "score" (STEMS, LEAVES, BRANCHES, GHOSTS, VISITORS, SNAIL, ACCENTS, FOOT) for A4 with a 68 mm left margin. |
 | `initial.lua` | decorated initials: glyph outline via `fonts.handlers.otf.readers.loadshapes`, even-odd inside test, clearance grid, the vine over/under the letter, leaflets, flowers in the gaps, tile frame. |
 | `florilegium.tex` / `florilegium-grow.tex` | demo documents (authored / grown). Body text = `text-methods.tex` (+ `text-growth.tex` for grown) + `text-sharing.tex`; it describes the code, so **update it when the method changes**. |
+| `florilegium-book.tex` | demo: the grown composition in a two-sided document, `[grown,book]`, geometry `inner=22mm,outer=68mm`; one pass, in `all` and the `xe` targets. |
 | `showcase.tex` | "A year in the margin": `[grown,sections,aging]`, an initial, `\florilegiumbloom`; each section describes the feature it shows. Two passes. |
 | `gallery.tex`, `tools/gallery.py` | one short page per variant (`\galleryink`, `\galleryage`) → `gallery/seeds.png` + `seeds.gif`, `inks.png`, `seasons.png`. |
 | `animation.tex`, `tools/animate.py` | growth animation: one page per frame (`\florilegiumframe`), parallel LuaLaTeX jobs, pdftoppm, ffmpeg → `build/grow-N.gif` + `.mp4`. `tools/animcheck.lua` checks that the last frame equals the page. |
@@ -35,7 +36,8 @@ document), pages get visitors, and paragraphs can open with a decorated initial;
 
 ```sh
 docker build -t florilegium-tex tools     # once, if there is no local TeX
-make RUN=tools/in-docker                  # the three PDFs (showcase: two passes for aging)
+make RUN=tools/in-docker                  # the four PDFs (showcase: two passes for aging)
+make florilegium-book.pdf RUN=tools/in-docker  # the two-sided demo (option book), one pass
 make seed-7 RUN=tools/in-docker           # one page for seed 7 -> build/seed-7.pdf
 make gallery RUN=tools/in-docker          # seeds, inks and seasons sheets (~40 s)
 make grow-6 RUN=tools/in-docker [EXPLAIN=1]            # ~45 s: build/grow-6.gif + .mp4
@@ -44,7 +46,7 @@ tools/in-docker texlua tools/animcheck.lua 1 2 3       # last frame == page, byt
 make preview                              # gallery/preview-*.png from the root PDFs
 ```
 
-XeLaTeX (output in `build/xe/`, `build/xe-batch/`; each target runs the three demo documents):
+XeLaTeX (output in `build/xe/`, `build/xe-batch/`; each target runs the four demo documents):
 
 ```sh
 make xe RUN=tools/in-docker               # xelatex --shell-escape -jobname=build/xe/<doc> (showcase twice)
@@ -56,7 +58,7 @@ xelatex doc && texlua florilegium-xe.lua doc && xelatex doc   # aging: one more 
 
 Check after touching the Lua core or the `.def`: (1) a LuaLaTeX build must stay byte-identical
 to the previous commit's (`SOURCE_DATE_EPOCH=1 FORCE_SOURCE_DATE=1` makes the PDFs
-reproducible; `cmp` the three PDFs against a build of the previous commit, e.g. from `git worktree`);
+reproducible; `cmp` the four PDFs against a build of the previous commit, e.g. from `git worktree`);
 (2) the XeLaTeX drawings must equal LuaLaTeX's: run the driver with
 `FLORILEGIUM_DUMP=/tmp/xe.dump` and compare it with the content streams of a LuaLaTeX run
 (same `length\nstream\n` format, from a harness that replaces `ink.backend.literal`; or
@@ -133,6 +135,13 @@ is ~70 KB of path operators, a page ~3 MB uncompressed, ~0.7 MB in the PDF.
 - **`-output-directory` does not work under XeLaTeX** (xdvipdfmx looks in the working
   directory). Use `-jobname=dir/doc` (dir must exist) and give texlua the same base.
   Byproducts (`*.flo`, `*-flo.pdf`, `*-flo.tex`, `*-flo/`, `*.xdv`) are git-ignored and in `make clean`.
+- **Two-sided mirror (option book).** `ink.lua: P` applies the page mirror last (`set_mirror(W)`
+  turns every written x into W − x, after the transform), so every coordinate must go through
+  P; a new raw coordinate written past P would escape the mirror. On odd (recto) pages
+  `florilegium.lua` lays the page out as a left-margin page with the text edges mirrored
+  (`mirrored()` in `M.geometry`) and the marks mirrored (`x = pw − x`); `mirrored_draw` turns the
+  mirror on around the garden and the header only. Only margins are mirrored, never
+  `\florilegiumdraw` or initials.
 - **Any change to the Lua core must keep LuaLaTeX output byte-identical** (see Build).
 - This container's TeX Live lacks luaotfload's font database for system fonts; the
   documents pin Computer Modern. Harmless to remove on a full install.
@@ -196,6 +205,5 @@ can then place it by name, and `\florilegiumbloom[name]` can ask for it.
 - Section flowers for KOMA/titlesec headings (only `\@sect`-based classes now).
 - Initials in the authored composition's style for the first page, and a bigger, framed
   title-page tile.
-- A mirrored right-margin variant for two-sided documents.
 - Form XObjects for repeated sub-shapes (florets) to cut the PDF size further.
 - A density/airiness option (SMALLEST, FILLMIN, caps) exposed in the `.sty`.

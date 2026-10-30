@@ -5,7 +5,7 @@ SEEDS   ?= 1 2 3 4 5 6
 RUN     ?=
 LUA      = ink.lua flora.lua florilegium.lua initial.lua
 
-all: florilegium.pdf florilegium-grow.pdf showcase.pdf
+all: florilegium.pdf florilegium-grow.pdf florilegium-book.pdf showcase.pdf
 
 # authored composition (authored.lua), one pass, about a second a page
 florilegium.pdf: florilegium.tex florilegium.sty authored.lua grow.lua $(LUA) text-methods.tex text-sharing.tex
@@ -53,13 +53,13 @@ animation:
 	cp build/grow-6.gif gallery/growth.gif
 	cp build/grow-6-explain.gif gallery/growth-explain.gif
 
-# The same three documents with XeLaTeX (see the README); -jobname puts everything in a
+# The same four documents with XeLaTeX (see the README); -jobname puts everything in a
 # directory (-output-directory does not work with XeLaTeX), which must exist.
 #   make xe        xelatex --shell-escape: each drawing is made as it is placed -> build/xe/
 #   make xe-batch  no shell escape: xelatex, texlua florilegium-xe.lua, xelatex -> build/xe-batch/
 # showcase needs a second run (heading marks, page count for aging); in batch mode the
 # page count needs one more xelatex before texlua.
-XEDOCS   = florilegium florilegium-grow showcase
+XEDOCS   = florilegium florilegium-grow florilegium-book showcase
 
 xe: $(XEDOCS:%=%.tex) florilegium.sty florilegium-xetex.def florilegium-xe.lua grow.lua $(LUA)
 	mkdir -p build/xe
@@ -70,7 +70,7 @@ xe: $(XEDOCS:%=%.tex) florilegium.sty florilegium-xetex.def florilegium-xe.lua g
 
 xe-batch: $(XEDOCS:%=%.tex) florilegium.sty florilegium-xetex.def florilegium-xe.lua grow.lua $(LUA)
 	mkdir -p build/xe-batch
-	for d in florilegium florilegium-grow; do \
+	for d in florilegium florilegium-grow florilegium-book; do \
 	  $(XELATEX) -jobname=build/xe-batch/$$d $$d.tex || exit 1; \
 	  $(RUN) texlua florilegium-xe.lua build/xe-batch/$$d || exit 1; \
 	  $(XELATEX) -jobname=build/xe-batch/$$d $$d.tex || exit 1; \
@@ -80,10 +80,16 @@ xe-batch: $(XEDOCS:%=%.tex) florilegium.sty florilegium-xetex.def florilegium-xe
 	$(RUN) texlua florilegium-xe.lua build/xe-batch/showcase
 	$(XELATEX) -jobname=build/xe-batch/showcase showcase.tex
 
-preview: florilegium.pdf florilegium-grow.pdf showcase.pdf
+preview: florilegium.pdf florilegium-grow.pdf florilegium-book.pdf showcase.pdf
 	mkdir -p gallery
 	pdftoppm -png -r 60 -f 1 -l 1 -singlefile florilegium.pdf gallery/preview-authored
 	pdftoppm -png -r 60 -f 1 -l 1 -singlefile florilegium-grow.pdf gallery/preview-grown
+	pdftoppm -png -r 60 -f 2 -l 2 -singlefile florilegium-book.pdf build/book-verso
+	pdftoppm -png -r 60 -f 3 -l 3 -singlefile florilegium-book.pdf build/book-recto
+	python3 -c "from PIL import Image; \
+	  ims = [Image.open(f).convert('RGB') for f in ('build/book-verso.png', 'build/book-recto.png')]; w, h = ims[0].size; \
+	  s = Image.new('RGB', (2 * w + 24, h + 16), (235, 235, 240)); \
+	  [s.paste(im, (8 + i * (w + 8), 8)) for i, im in enumerate(ims)]; s.save('gallery/preview-book.png')"
 	pdftoppm -png -r 45 showcase.pdf build/showcase
 	python3 -c "from PIL import Image; import glob; \
 	  ims = [Image.open(f).convert('RGB') for f in sorted(glob.glob('build/showcase-*.png'))]; w, h = ims[0].size; \

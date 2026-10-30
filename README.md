@@ -91,6 +91,13 @@ The grown margin can respond to the document around it:
 *One seed in spring, early summer, late summer and autumn. The seasons change what grows,
 not where.*
 
+## Two-sided documents
+
+![pages 2 and 3 of florilegium-book.tex](gallery/preview-book.png)
+
+*`florilegium-book.tex`, option `book`: a verso and the recto after it, the garden in the outer
+margin of both. Initials and `\florilegiumdraw` are never mirrored.*
+
 ## Visitors
 
 ![detail with a bird and a snail](gallery/detail-visitors.png)
@@ -114,7 +121,7 @@ LuaLaTeX is the native route: one pass, about a second a page (two passes for
 `showcase.tex`, whose seasons need the page count). XeLaTeX works too, see below.
 
 ```sh
-make                        # the three PDFs
+make                        # the four PDFs
 make seed-7                 # one page from seed 7 -> build/seed-7.pdf
 make gallery                # gallery/seeds.png + seeds.gif, inks.png, seasons.png (python3, Pillow, pdftoppm)
 make grow-6                 # growth animation of seed 6 -> build/grow-6.gif + .mp4 (ffmpeg)
@@ -143,7 +150,7 @@ Two ways to build:
 ```sh
 xelatex --shell-escape doc                                 # each drawing is made as it is placed
 xelatex doc && texlua florilegium-xe.lua doc && xelatex doc   # no shell escape
-make xe                     # the three demo documents, shell escape  -> build/xe/
+make xe                     # the four demo documents, shell escape   -> build/xe/
 make xe-batch               # the same without shell escape            -> build/xe-batch/
 ```
 
@@ -167,7 +174,7 @@ Use it in your own document:
 ```latex
 \usepackage[grown]{florilegium}      % or plain \usepackage{florilegium} for the authored one
 % options for the grown one: sections (flowers at the headings), aging (two runs),
-% novisitors (no butterflies, bees, snails or birds)
+% novisitors (no butterflies, bees, snails or birds), book (two-sided: the outer margin)
 \definecolor{ink}{HTML}{5B2A1F}      % optional: the hue of the whole palette (this is sepia)
 \definecolor{accent}{HTML}{B4662F}   % optional: the copper of the hairlines
 ...
@@ -175,6 +182,16 @@ Use it in your own document:
 ... a flower in the margin beside this line\florilegiumbloom ...
 \florilegiumage{0.8}                 % grown only: autumn from here on
 \florilegiumtextend                  % grown only: at the very end of the text
+```
+
+For a two-sided document, `book` puts the garden in the outer margin of every page: on the
+left of even pages, mirrored on the right of odd ones. It needs a two-sided layout (in a
+one-sided one it warns and changes nothing):
+
+```latex
+\documentclass[11pt,a4paper,twoside]{article}
+\usepackage[a4paper,twoside,inner=22mm,outer=68mm]{geometry}
+\usepackage[grown,book]{florilegium}
 ```
 
 A fixed seed instead of the page number: `lualatex "\def\florilegiumseed{7}\input{florilegium-grow.tex}"`
