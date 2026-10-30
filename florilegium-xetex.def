@@ -1,0 +1,244 @@
+%% florilegium-xetex.def -- florilegium.sty under XeLaTeX (loaded by the .sty; not for \input).
+%%
+%% XeLaTeX cannot run Lua, so the drawing is done by texlua, outside TeX
+%% (florilegium-xe.lua, which plays the very same florilegium.lua, ink.lua, ... as
+%% LuaLaTeX does) and placed back as PDF pages with \special{pdf:image}. Every
+%% margin and every \florilegiuminitial and \florilegiumdraw is an *item*, numbered in
+%% the order in which TeX meets them; item n is page n of <jobname>-flo.pdf, or the
+%% file <jobname>-flo/n.pdf. XeLaTeX gives the driver one Lua record per item
+%% (format: see florilegium-xe.lua). Two ways to build, chosen by the run itself:
+%%
+%%   xelatex --shell-escape doc          one run. Each item is drawn the moment TeX
+%%       places it (\write18{texlua ...}). The positions of the headings and
+%%       \florilegiumbloom marks are known only once a page has been shipped, so
+%%       the margin uses those of the run before (from the .aux): a document with
+%%       sections/blooms needs a second run, and LaTeX says "Rerun" until the marks
+%%       stay put (like the page count of the option aging).
+%%
+%%   xelatex doc                         no shell escape (the default for the
+%%   texlua florilegium-xe.lua doc       restricted mode of TeX Live, which does not
+%%   xelatex doc                         allow texlua): the first run writes
+%%       <jobname>.flo, texlua draws all of it into <jobname>-flo.pdf, the next run
+%%       places the drawings. Without the PDF a run still finishes, with no drawings
+%%       and a warning that names the commands above. As long as the .flo of a run
+%%       differs from the one that was drawn (text moved, the page count of the aging
+%%       changed), the log says so; repeat the last two commands until it does not.
+%%
+%% The option aging needs the page count of the run before (the .aux), so it takes one
+%% more xelatex before texlua: xelatex doc && xelatex doc && texlua ... && xelatex doc.
+%% The drawings of the shell-escape mode are left in <jobname>-flo/ (one PDF each).
+%%
+%% Install florilegium-xe.lua beside the .sty and the Lua files (anywhere kpsewhich
+%% finds it; the shell-escape mode asks kpsewhich for it, the other mode is run by hand).
+%% The drawings are found by xdvipdfmx in the working directory, so -jobname=dir/doc
+%% works but -output-directory does not (TeX would find the PDF there, xdvipdfmx
+%% would not); an inline drawing (\florilegiumdraw, an initial) may extend 1200 bp
+%% (42 cm) from its origin in every direction, and is cut off beyond.
+%%
+%% Needs LaTeX 2021 or later (hooks) and \pdfsavepos (XeTeX 0.99992 or later).
+
+\ifdefined\mdfivesum\else
+  \PackageError{florilegium}{This XeTeX has no \string\mdfivesum}{Use a TeX Live of 2019 or later.}%
+\fi
+
+\def\florilegium@colors{%
+  \extractcolorspecs{ink}{\flo@m}{\flo@s}\convertcolorspec{\flo@m}{\flo@s}{rgb}\flo@ink
+  \extractcolorspecs{accent}{\flo@m}{\flo@s}\convertcolorspec{\flo@m}{\flo@s}{rgb}\flo@acc}
+
+\newwrite\flo@out                     % <jobname>.flo
+\newwrite\flo@one                     % <jobname>-item.flo (shell escape: one item)
+\newcount\flo@item                    % items met so far
+\newcount\flo@shipped                 % pages shipped so far (with margin)
+\newcount\flo@rngk                    % draws from the page rng since it was seeded
+\newcount\flo@missing                 % items whose drawing is not there
+\newif\ifflo@shell                    % one-run mode (shell escape)
+\def\flo@rngpage{nil}\def\flo@rngfixed{nil}
+\def\flo@frame{nil}\def\flo@age{nil}
+\def\flo@ifont{lmroman10-bold.otf}
+\def\flo@drawncount{0}\def\flo@drawnmd5{}
+\edef\flo@prevmd5{\mdfivesum{}}       % the marks of the run before, see the end
+\def\flo@drawn#1#2{\def\flo@drawncount{#1}\def\flo@drawnmd5{#2}}
+
+%% where the driver is: kpsewhich knows (it is allowed even in the restricted shell escape)
+\newread\flo@rd
+\def\flo@driver{}
+\def\flo@finddriver{%
+  \begingroup
+    \endlinechar=-1
+    \openin\flo@rd="|kpsewhich -format=tex florilegium-xe.lua || kpsewhich -format=lua florilegium-xe.lua"\relax
+    \ifeof\flo@rd\else\readline\flo@rd to\flo@line\closein\flo@rd
+      \global\let\flo@driver\flo@line
+    \fi
+  \endgroup}
+
+%% what the PDF holds: batch mode reads <jobname>-flo.tex, written by the driver
+\AtBeginDocument{%
+  \let\flo@prevmark\@gobbletwo            % the .aux is read once more at the end
+  \ifnum\shellescape=\@ne
+    \flo@finddriver
+    \ifx\flo@driver\@empty
+      \PackageWarningNoLine{florilegium}{florilegium-xe.lua not found by kpsewhich, no drawing in one run}%
+    \else
+      \flo@shelltrue
+    \fi
+  \fi
+  \ifflo@shell\else
+    \IfFileExists{\jobname-flo.pdf}{\InputIfFileExists{\jobname-flo.tex}{}{}}{}%
+  \fi
+  \immediate\openout\flo@out=\jobname.flo\relax}
+%% marks of the run before (shell escape): \flo@m@<n> holds those of shipped page n
+\def\flo@prevmark#1#2{\ifcsname flo@m@#1\endcsname\else\expandafter\gdef\csname flo@m@#1\endcsname{}\fi
+  \expandafter\g@addto@macro\csname flo@m@#1\endcsname{#2;}}
+
+%% ---------------------------------------------------------------- items
+%% an item: \flo@rec holds its record (with the id already in it); it goes to the
+%% driver and the drawing is placed where this is called
+\newdimen\flo@D \flo@D=1200bp         % inline items: PDF page [0 0 2D 2D], origin at (D, D)
+\newbox\flo@box
+\def\flo@image{%
+  \ifflo@shell
+    \IfFileExists{\jobname-flo/\the\flo@item.pdf}%
+      {\special{pdf:image (\jobname-flo/\the\flo@item.pdf)}}%
+      {\global\advance\flo@missing\@ne}%
+  \else
+    \ifnum\flo@item>\flo@drawncount\relax\else
+      \special{pdf:image page \the\flo@item\space (\jobname-flo.pdf)}%
+    \fi
+  \fi}
+%% the image of an inline item has its origin D right of and above its lower-left
+%% corner: place that corner D left of and below the current point, in a box without size
+\def\flo@inline{%
+  \setbox\flo@box\hbox to\z@{\kern-\flo@D\lower\flo@D\hbox to\z@{\flo@image\hss}\hss}%
+  \ht\flo@box\z@ \dp\flo@box\z@
+  \box\flo@box}
+%% shell escape: one file, one driver call
+\def\flo@draw@now#1{%
+  \immediate\openout\flo@one=\jobname-item.flo\relax
+  \immediate\write\flo@one{\flo@rec}%
+  #1%
+  \immediate\closeout\flo@one
+  \immediate\write18{texlua "\flo@driver" --item \the\flo@item\space\jobname}}
+\def\flo@rngrec{rng={page=\flo@rngpage, fixed=\flo@rngfixed, k=\the\flo@rngk}}
+\def\flo@colrec{ink={\flo@ink}, accent={\flo@acc}}
+
+%% one primitive inside a tikzpicture, under the current transformation
+\newcommand\florilegiumdraw[2]{%
+  \florilegium@colors
+  \global\advance\flo@item\@ne
+  \edef\flo@args{#2}%
+  \edef\flo@rec{DRAW{id=\the\flo@item, name=[==[#1]==], args=[==[\detokenize\expandafter{\flo@args}]==],
+    aa=[==[\pgf@pt@aa]==], ab=[==[\pgf@pt@ab]==], ba=[==[\pgf@pt@ba]==], bb=[==[\pgf@pt@bb]==],
+    x=\number\pgf@pt@x, y=\number\pgf@pt@y, \flo@colrec, \flo@rngrec}}%
+  \global\advance\flo@rngk\@ne
+  \ifflo@shell\flo@draw@now{}\else\immediate\write\flo@out{\flo@rec}\fi
+  \flo@inline}
+
+%% a decorated initial: a square tile from the cap height of the first line to
+%% the baseline of line #1, the paragraph's first #1 lines indented beside it
+\newcommand\florilegiuminitial[2][4]{\par
+  \begingroup
+    \dimen@=\fontcharht\font`\H
+    \global\dimen1=\dimexpr\baselineskip*\numexpr#1-1\relax+\dimen@\relax
+    \global\dimen3=\dimen@
+  \endgroup
+  \hangindent=\dimexpr\dimen1+0.6em\relax \hangafter=-#1\relax
+  \noindent\florilegium@colors
+  \global\advance\flo@item\@ne
+  \edef\flo@rec{INITIAL{id=\the\flo@item, letter=[==[#2]==], side=\number\dimen1,
+    hang=\number\hangindent, cap=\number\dimen3, font=[==[\flo@ifont]==], \flo@colrec, \flo@rngrec}}%
+  \global\advance\flo@rngk\@ne
+  \ifflo@shell\flo@draw@now{}\else\immediate\write\flo@out{\flo@rec}\fi
+  \flo@inline
+  % the letter is also typeset, in PDF's invisible text rendering mode, so that the
+  % paragraph still copies and searches as "This", not "his"
+  \llap{\special{pdf:literal direct 3 Tr}#2\special{pdf:literal direct 0 Tr}}%
+  \ignorespaces}
+\newcommand\florilegiuminitialfont[1]{\xdef\flo@ifont{#1}}
+
+%% ---------------------------------------------------------------- the margin
+\def\flo@endpage{-1}\def\flo@endtotal{0pt}
+\newcommand\florilegiumtextend{\par
+  \xdef\flo@endpage{\number\value{page}}%
+  \xdef\flo@endtotal{\the\dimexpr\pagetotal+\pagedepth\relax}}
+\newcommand\florilegiumage[1]{\xdef\flo@age{#1}}
+\newcommand\florilegiumframe[3][]{\xdef\flo@frame{{k=#2, n=#3, explain=[==[#1]==]}}}
+
+%% the record of a page is made when it ships out; in batch mode it is written then
+%% (the \write is part of the page), in shell-escape mode the driver is called at once
+\def\flo@page{%
+  \global\advance\flo@item\@ne
+  \global\advance\flo@shipped\@ne
+  \florilegium@colors
+  \xdef\flo@rngpage{\number\value{page}}%
+  \xdef\flo@rngfixed{\ifx\florilegiumseed\@empty nil\else\florilegiumseed\fi}%
+  \global\flo@rngk=\@ne                  % the header takes the first draw
+  \edef\flo@rec{PAGE{id=\the\flo@item, n=\the\flo@shipped, page=\number\value{page},
+    fixed=\flo@rngfixed,
+    grown=\ifflorilegium@grown true\else false\fi, visitors=\ifflorilegium@visitors true\else false\fi,
+    aging=\ifflorilegium@aging true\else false\fi, age=\flo@age,
+    last=\ifdefined\flo@lastpage\flo@lastpage\else nil\fi,
+    \flo@colrec, endpage=\flo@endpage, endtotal=\number\dimexpr\flo@endtotal\relax,
+    frame=\flo@frame,
+    paperwidth=\number\paperwidth, paperheight=\number\paperheight,
+    hoffset=\number\hoffset, voffset=\number\voffset,
+    oddsidemargin=\number\oddsidemargin, textwidth=\number\textwidth,
+    topmargin=\number\topmargin, headheight=\number\headheight, headsep=\number\headsep,
+    textheight=\number\textheight, footskip=\number\footskip}}%
+  \ifflo@shell
+    \flo@draw@now{\ifcsname flo@m@\the\flo@shipped\endcsname
+      \immediate\write\flo@one{\csname flo@m@\the\flo@shipped\endcsname}\fi}%
+  \else
+    \edef\flo@x{\noexpand\write\flo@out{\flo@rec}}\flo@x
+  \fi
+  \flo@image}
+
+%% marks in the text: the position is saved when the page ships out, and goes to the
+%% .flo (batch: this run's drawing) and, with shell escape, to the .aux (the next run's)
+\ifflorilegium@margin
+  \def\flo@mark#1#2{\pdfsavepos
+    \write\flo@out{MARK{n=\the\flo@shipped, page=\number\value{page}, kind="#1", arg=#2,
+      x=\the\pdflastxpos, y=\the\pdflastypos}}%
+    \ifflo@shell\write\@auxout{\string\flo@prevmark{\the\flo@shipped}{MARK{n=\the\flo@shipped,
+      page=\number\value{page}, kind="#1", arg=#2, x=\the\pdflastxpos, y=\the\pdflastypos}}}\fi}
+\else
+  \let\flo@mark\@gobbletwo
+\fi
+\newcommand\florilegiumbloom[1][]{\flo@mark{bloom}{[==[#1]==]}}
+\protected\def\florilegium@headmark#1{\ifnum#1<3 \flo@mark{heading}{#1}\fi}
+
+\ifflorilegium@aging
+  % the page count goes to the .aux; the next run reads it at \begin{document}
+  \AtEndDocument{%
+    \immediate\write\@auxout{\gdef\string\flo@lastpage{\number\value{page}}}%
+    \ifdefined\flo@lastpage\ifnum\flo@lastpage=\value{page}\else\flo@rerun\fi\else\flo@rerun\fi}
+  \def\flo@rerun{\PackageWarningNoLine{florilegium}{The page count changed. Rerun to get the aging right}}
+\fi
+
+%% the end of the run: close the .flo and check that the drawing is up to date
+\AddToHook{enddocument/afterlastpage}{%
+  \immediate\closeout\flo@out
+  \edef\flo@md5{\mdfivesum file{\jobname.flo}}%
+  \ifflo@shell
+    % the .flo holds the marks only; they have to be the ones this run drew with
+    \immediate\write\@auxout{\gdef\string\flo@prevmd5{\flo@md5}}%
+    \ifnum\strcmp{\flo@md5}{\flo@prevmd5}=\z@\else
+      \PackageWarningNoLine{florilegium}{The positions of the marks changed. Rerun to get the margin right}%
+    \fi
+    \ifnum\flo@missing>\z@
+      \PackageWarningNoLine{florilegium}{\the\flo@missing\space drawings are missing: texlua failed. Try
+        texlua florilegium-xe.lua --item 1 \jobname\space or the build without --shell-escape}%
+    \fi
+  \else
+    \ifnum\flo@item>\z@
+      \ifnum\strcmp{\flo@md5}{\flo@drawnmd5}=\z@\else
+        \PackageWarningNoLine{florilegium}{The drawings (\jobname-flo.pdf) are missing or out of date.
+          Run:  texlua florilegium-xe.lua \jobname\space and then xelatex again (or run xelatex --shell-escape)}%
+      \fi
+    \fi
+  \fi}
+
+%% ---------------------------------------------------------------- plumbing
+\ifflorilegium@margin
+  \AddToShipoutPictureBG{\AtPageLowerLeft{\flo@page}}
+\fi
+\endinput

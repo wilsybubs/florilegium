@@ -1,9 +1,12 @@
 %% florilegium.sty -- a procedurally generated floral page margin, drawn by Lua
 %% https://github.com/kevinraymond/florilegium  (MIT)
 %%
-%% LuaLaTeX only. The geometry of every petal, leaf and stem is computed in Lua
+%% LuaLaTeX or XeLaTeX. The geometry of every petal, leaf and stem is computed in Lua
 %% (ink.lua, flora.lua) and written straight into the page as PDF path
-%% operators; TeX does no arithmetic. A page takes a second or two.
+%% operators; TeX does no arithmetic. A page takes a second or two. LuaLaTeX runs
+%% the Lua code itself; XeLaTeX has texlua draw it outside TeX and places the result
+%% (florilegium-xetex.def: xelatex --shell-escape doc, or xelatex doc &&
+%% texlua florilegium-xe.lua doc && xelatex doc).
 %%
 %% Usage
 %%   \usepackage{florilegium}          authored composition (hand-placed, authored.lua)
@@ -39,8 +42,8 @@
 %%
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{florilegium}[2026/10/30 v1.1 procedural floral margin, Lua-drawn]
-\ifdefined\directlua\else
-  \PackageError{florilegium}{florilegium needs LuaLaTeX}{Compile with lualatex.}\fi
+\ifdefined\directlua\else\ifdefined\XeTeXrevision\else
+  \PackageError{florilegium}{florilegium needs LuaLaTeX or XeLaTeX}{Compile with lualatex or xelatex.}\fi\fi
 \RequirePackage{tikz}
 \RequirePackage{eso-pic}
 
@@ -64,6 +67,8 @@
 \definecolor{ink}{HTML}{2456C4}
 \definecolor{accent}{HTML}{B4662F}
 
+\ifdefined\directlua
+%% ================================================================ LuaLaTeX
 \directlua{florilegium = require("florilegium")}
 \ifflorilegium@visitors\else\directlua{florilegium.visitors = false}\fi
 
@@ -111,14 +116,6 @@
 %% shipout hook finds it in the page box (florilegium.lua)
 \newcommand\florilegiumbloom[1][]{\directlua{florilegium.mark("bloom", "\luaescapestring{#1}")}}
 \protected\def\florilegium@headmark#1{\ifnum#1<3 \directlua{florilegium.mark("heading", #1)}\fi}
-\ifflorilegium@sections
-  % standard classes build every heading with \@sect; its last argument is the
-  % text that is typeset (the TOC and marks get the optional one), so the mark
-  % goes there, after the number
-  \AtBeginDocument{%
-    \let\flo@sect\@sect
-    \def\@sect#1#2#3#4#5#6[#7]#8{\flo@sect{#1}{#2}{#3}{#4}{#5}{#6}[{#7}]{\florilegium@headmark{#2}#8}}}
-\fi
 \newcommand\florilegiumage[1]{\directlua{florilegium.age = #1}}
 
 %% a decorated initial: a square tile from the cap height of the first line to
@@ -155,5 +152,21 @@
   \else
     \AddToShipoutPictureBG{\AtPageLowerLeft{\margingarden}}
   \fi
+\fi
+
+\else
+%% ================================================================ XeLaTeX
+%% the drawing is done by texlua outside TeX, see florilegium-xetex.def
+\ifdefined\XeTeXrevision\input{florilegium-xetex.def}\fi
+\fi
+
+%% ---------------------------------------------------------------- headings (both engines)
+\ifflorilegium@sections
+  % standard classes build every heading with \@sect; its last argument is the
+  % text that is typeset (the TOC and marks get the optional one), so the mark
+  % goes there, after the number
+  \AtBeginDocument{%
+    \let\flo@sect\@sect
+    \def\@sect#1#2#3#4#5#6[#7]#8{\flo@sect{#1}{#2}{#3}{#4}{#5}{#6}[{#7}]{\florilegium@headmark{#2}#8}}}
 \fi
 \endinput
