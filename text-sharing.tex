@@ -12,6 +12,11 @@ job that compiles the PDFs on every push and attaches them to tagged releases; o
 the package so that any document can \texttt{\textbackslash usepackage} the garden and
 choose its own seed, column and hue.
 
+Xe\LaTeX\ cannot run Lua, so \texttt{texlua florilegium-xe.lua} draws outside \TeX\ with the
+same files, and \texttt{xdvipdfmx} places the pages it writes. Either \verb|xelatex --shell-escape|
+draws each item as it is placed, or \texttt{xelatex}, \texttt{texlua} and \texttt{xelatex} do it in
+three steps; marks need a second run. The drawings equal Lua\LaTeX's byte for byte.
+
 \begin{remark}
 Two mistakes cost time and are worth recording. A literal written into the page bypasses
 TikZ, so it also bypasses TikZ's transformations: a primitive called inside

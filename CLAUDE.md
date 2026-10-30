@@ -1,7 +1,10 @@
 # florilegium — handoff notes
 
-Procedurally generated Delft-blue floral page margins for LuaLaTeX. All geometry is
-computed in Lua and written as raw PDF path operators; TeX does no arithmetic. Two
+Procedurally generated Delft-blue floral page margins for LuaLaTeX, and, since the
+XeLaTeX path, for XeLaTeX. All geometry is computed in Lua and written as raw PDF path
+operators; TeX does no arithmetic. LuaLaTeX runs the Lua inside TeX (native path); XeLaTeX
+cannot, so `florilegium-xe.lua` runs the same Lua in texlua outside TeX and the drawings
+are placed as PDF pages (byte-identical to LuaLaTeX's). Two
 documents share one package: an **authored** composition (hand-placed stems, leaves and
 branch targets, parameters sampled) and a **grown** one (layout computed by a greedy
 space-filling loop). Same primitives, same motif table. No images, no assets. The grown
@@ -13,9 +16,11 @@ document), pages get visitors, and paragraphs can open with a decorated initial;
 
 | file | what |
 |---|---|
-| `florilegium.sty` | thin TeX layer: options `authored` (default) / `grown`, `nomargin`, `novisitors`, `sections`, `aging`; colors `ink` and `accent`; `\florilegiumdraw`, `\florilegiumtextend`, `\florilegiumbloom`, `\florilegiumage`, `\florilegiuminitial`, `\florilegiuminitialfont`, `\florilegiumframe`; the shipout hook. LuaLaTeX only. |
-| `florilegium.lua` | glue: page geometry from TeX dimens, colors, page seed, the TikZ transform (`\pgf@pt@aa..bb`, `\pgf@pt@x/y`), primitive dispatch, the header; text marks (whatsits) and the walk of `\ShipoutBox` that finds them; age; animation frames; the initial's placement and its invisible letter. |
-| `ink.lua` | drawing core: mulberry32 rng, 1-D gradient noise/fbm, OKLCH tone ramp, affine transform stack, path building (`smooth` = Catmull-Rom as Béziers, `taper`, `ribbon`, `blade`, `blob`), fill/stroke/clip with ExtGState opacity + multiply, numbered layers, `flush()` into one `pdf_literal` node. |
+| `florilegium.sty` | thin TeX layer: options `authored` (default) / `grown`, `nomargin`, `novisitors`, `sections`, `aging`; colors `ink` and `accent`; `\florilegiumdraw`, `\florilegiumtextend`, `\florilegiumbloom`, `\florilegiumage`, `\florilegiuminitial`, `\florilegiuminitialfont`, `\florilegiumframe`; the shipout hook. LuaLaTeX natively; under XeLaTeX it loads the `.def` below instead of the shipout hook. |
+| `florilegium-xetex.def` | XeLaTeX half of the `.sty` (loaded by it): one Lua record per margin/initial/`\florilegiumdraw` into `<jobname>.flo`, `\pdfsavepos` for marks, `\special{pdf:image}` to place the drawings, shell-escape one-run mode and batch mode, md5 of the records for the rerun warnings. The header comment is the spec of both build modes. |
+| `florilegium-xe.lua` | the driver, run by texlua: reads the records, stubs the TeX accessors, plays them through `florilegium.lua` and writes minimal PDFs (`<base>-flo.pdf` + `-flo.tex` in batch mode; `<base>-flo/n.pdf` with `--item n` in shell-escape mode). Header comment: record format. Env `FLORILEGIUM_DUMP=<file>` appends every content stream. |
+| `florilegium.lua` | glue: page geometry from TeX dimens (through `M.dimen`/`M.macro`/`M.error`, which the XeLaTeX driver replaces), `reset_rng`/`advance` to replay the page rng, marks given as a precomputed list, colors, page seed, the TikZ transform (`\pgf@pt@aa..bb`, `\pgf@pt@x/y`), primitive dispatch, the header; text marks (whatsits) and the walk of `\ShipoutBox` that finds them; age; animation frames; the initial's placement and its invisible letter. |
+| `ink.lua` | drawing core: mulberry32 rng, 1-D gradient noise/fbm, OKLCH tone ramp, affine transform stack, path building (`smooth` = Catmull-Rom as Béziers, `taper`, `ribbon`, `blade`, `blob`), fill/stroke/clip with ExtGState opacity + multiply, numbered layers, `flush()` into one `pdf_literal` node. Output goes through `ink.backend` (`literal(s)`, `extgs(name, dict)`), which a driver outside TeX replaces. |
 | `flora.lua` | the primitives: `petal flower lily blossom floret bud bell leaf leaflet stem cyme sprig umbel seedhead tendril sparkle rosette hedera ghost`, the visitors `butterfly bee snail bird`, plus `branch_path`. |
 | `grow.lua` | grown composition: regions, grid, stems, marks, visitors on the stems, leaves at nodes, branch loop, falling petals, filler, footer tail; seasons; animation events. Also exports the **motif table** (`M.motifs`) and layer numbers used by `authored.lua`. |
 | `authored.lua` | authored composition: the hand-placed "score" (STEMS, LEAVES, BRANCHES, GHOSTS, VISITORS, SNAIL, ACCENTS, FOOT) for A4 with a 68 mm left margin. |
@@ -38,6 +43,25 @@ make animation RUN=tools/in-docker                     # both, copied to gallery
 tools/in-docker texlua tools/animcheck.lua 1 2 3       # last frame == page, byte for byte
 make preview                              # gallery/preview-*.png from the root PDFs
 ```
+
+XeLaTeX (output in `build/xe/`, `build/xe-batch/`; each target runs the three demo documents):
+
+```sh
+make xe RUN=tools/in-docker               # xelatex --shell-escape -jobname=build/xe/<doc> (showcase twice)
+make xe-batch RUN=tools/in-docker         # no shell escape: xelatex, texlua florilegium-xe.lua build/xe-batch/<doc>, xelatex
+                                          #   (showcase: xelatex, xelatex, texlua, xelatex)
+xelatex --shell-escape doc                # by hand, in your own document; twice if it has sections/blooms
+xelatex doc && texlua florilegium-xe.lua doc && xelatex doc   # aging: one more xelatex before texlua
+```
+
+Check after touching the Lua core or the `.def`: (1) a LuaLaTeX build must stay byte-identical
+to the previous commit's (`SOURCE_DATE_EPOCH=1 FORCE_SOURCE_DATE=1` makes the PDFs
+reproducible; `cmp` the three PDFs against a build of the previous commit, e.g. from `git worktree`);
+(2) the XeLaTeX drawings must equal LuaLaTeX's: run the driver with
+`FLORILEGIUM_DUMP=/tmp/xe.dump` and compare it with the content streams of a LuaLaTeX run
+(same `length\nstream\n` format, from a harness that replaces `ink.backend.literal`; or
+extract the page content streams from the PDF), and diff the margins as pixels with `pdftoppm`.
+`make xe` and `make xe-batch` must give pixel-identical pages.
 
 Fixed seed: `lualatex "\def\florilegiumseed{7}\input{florilegium-grow.tex}"`. Any
 positive integer works.
@@ -95,6 +119,21 @@ is ~70 KB of path operators, a page ~3 MB uncompressed, ~0.7 MB in the PDF.
 - **Never wrap typeset text in `q`…`Q` page literals**: `Q` drops the `Tf` LuaTeX set
   inside and the rest of the page's text disappears. The initial's invisible letter uses
   `3 Tr` / `0 Tr` instead. (ActualText on a path-only span is ignored by poppler.)
+- **XeLaTeX: xdvipdfmx converts pages while XeTeX is still running**, so a PDF made at the end
+  of the run is too late. Shell-escape mode therefore draws each item as it is placed
+  (`\write18{texlua ... --item n}`); batch mode needs the PDF from the run before.
+- **xdvipdfmx fails fatally on a missing image file or page.** Every `\special{pdf:image}` is
+  guarded (`\IfFileExists` in shell-escape mode, the page count from `-flo.tex` in batch mode); keep it so.
+- **The XeLaTeX path must keep the page rng in step with LuaLaTeX.** The page seed is set at
+  each margin page, the header takes one draw, each initial and each `\florilegiumdraw` one;
+  records carry `rng={page,fixed,k}` and the driver replays it (`reset_rng`/`advance`). A new
+  draw from the page rng in `florilegium.lua` must be mirrored in the `.def` and the driver.
+- **XeLaTeX marks:** `\pdfsavepos` is from the paper's lower-left corner; the driver redoes
+  `page_marks`' exact sum (with `\hoffset`/`\voffset`) to stay bit-identical.
+- **`-output-directory` does not work under XeLaTeX** (xdvipdfmx looks in the working
+  directory). Use `-jobname=dir/doc` (dir must exist) and give texlua the same base.
+  Byproducts (`*.flo`, `*-flo.pdf`, `*-flo.tex`, `*-flo/`, `*.xdv`) are git-ignored and in `make clean`.
+- **Any change to the Lua core must keep LuaLaTeX output byte-identical** (see Build).
 - This container's TeX Live lacks luaotfload's font database for system fonts; the
   documents pin Computer Modern. Harmless to remove on a full install.
 
@@ -149,6 +188,8 @@ can then place it by name, and `\florilegiumbloom[name]` can ask for it.
 
 ## Ideas not done
 
+- Cache the grown recording across frames/items in XeLaTeX shell-escape mode (every item is
+  a separate texlua process that replays the page).
 - Proxies of 2–3 discs for long motifs (leaves, cymes) instead of one disc.
 - Read free space on every page (floats, display equations), not just the last.
 - Leaf tips that curl over and show a paler underside, as in the reference image.

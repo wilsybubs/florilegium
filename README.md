@@ -11,7 +11,7 @@ It gets a similar look.
 
 ## What it is
 
-Procedurally generated Delft-blue floral page margins for LaTeX. No images, no imported
+Procedurally generated Delft-blue floral page margins for LuaLaTeX (and XeLaTeX). No images, no imported
 paths, no external assets: every petal, leaf and stem is a parametric curve computed in Lua
 while the page is being written, painted like a watercolor, and written straight into the
 PDF. Every page gets its own garden.
@@ -110,8 +110,8 @@ OKLCH, so the light end never turns gray.*
 
 ## Build
 
-LuaLaTeX, one pass, about a second a page (two passes for `showcase.tex`, whose seasons need
-the page count).
+LuaLaTeX is the native route: one pass, about a second a page (two passes for
+`showcase.tex`, whose seasons need the page count). XeLaTeX works too, see below.
 
 ```sh
 make                        # the three PDFs
@@ -129,7 +129,38 @@ make RUN=tools/in-docker
 ```
 
 Or paste `florilegium.sty`, the six `.lua` files and one of the `.tex` files into an
-[Overleaf](https://www.overleaf.com) project and set the compiler to LuaLaTeX.
+[Overleaf](https://www.overleaf.com) project and set the compiler to LuaLaTeX. (XeLaTeX
+also needs `florilegium-xetex.def` and `florilegium-xe.lua`.)
+
+### XeLaTeX
+
+XeLaTeX cannot run Lua, so the drawing is done by `texlua` outside TeX
+(`florilegium-xe.lua`, which runs the same Lua files) and placed as PDF pages with
+`\special{pdf:image}`. The drawings are byte-identical to LuaLaTeX's, and the build time is
+about the same. `florilegium-xetex.def` and `florilegium-xe.lua` must sit beside the `.sty`.
+Two ways to build:
+
+```sh
+xelatex --shell-escape doc                                 # each drawing is made as it is placed
+xelatex doc && texlua florilegium-xe.lua doc && xelatex doc   # no shell escape
+make xe                     # the three demo documents, shell escape  -> build/xe/
+make xe-batch               # the same without shell escape            -> build/xe-batch/
+```
+
+Run again when the log asks for it. The positions of headings and `\florilegiumbloom`
+marks are known only after a page is shipped, so a document that uses them (`sections`,
+blooms; `showcase.tex`) needs two runs in either mode. With `aging`, the batch route needs
+one more `xelatex` before `texlua`, for the page count. A plain document without marks is
+done in one run, or in the three steps. Without the drawings a run still finishes, with
+a warning that names the commands.
+
+`-output-directory` does not work with XeLaTeX (`xdvipdfmx` looks for the drawings in the
+working directory); `-jobname=build/xe/doc` does, if the directory exists, and `texlua`
+is then given the same base (`texlua florilegium-xe.lua build/xe/doc`). The byproducts
+are `doc.flo` (the records), `doc-flo.pdf` or `doc-flo/` (the drawings), `doc-flo.tex` and
+`doc.xdv`, all git-ignored and removed by `make clean`.
+
+### In your own document
 
 Use it in your own document:
 
@@ -146,7 +177,8 @@ Use it in your own document:
 \florilegiumtextend                  % grown only: at the very end of the text
 ```
 
-A fixed seed instead of the page number: `lualatex "\def\florilegiumseed{7}\input{florilegium-grow.tex}"`.
+A fixed seed instead of the page number: `lualatex "\def\florilegiumseed{7}\input{florilegium-grow.tex}"`
+(`xelatex` takes the same).
 
 Any primitive can be drawn on its own inside a TikZ picture, under the current scope's
 shift, rotation and scale:

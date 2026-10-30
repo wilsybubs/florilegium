@@ -6,6 +6,12 @@ scratch/
 *.synctex.gz
 *.fdb_latexmk
 *.fls
+# XeLaTeX path: records, drawings, DVI
+*.flo
+*-flo.pdf
+*-flo.tex
+*-flo/
+*.xdv
 # rendered previews live in gallery/; anything else is scratch
 *.png
 !gallery/*.png
