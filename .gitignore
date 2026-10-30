@@ -15,3 +15,4 @@ scratch/
 # rendered previews live in gallery/; anything else is scratch
 *.png
 !gallery/*.png
+.DS_Store
